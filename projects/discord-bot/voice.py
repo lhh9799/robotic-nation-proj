@@ -4,9 +4,11 @@ import youtube_dl
 import os
 from dbQuery import BAN as ban
 import timer
+from crawling_YT import Crawling_YT_Title, Crawling_YT_Comment
 
 client = commands.Bot(command_prefix="!")
 queue = list()
+comment_chk = False
 
 class Song :
     def __init__(self) :
@@ -79,8 +81,15 @@ async def is_connected(ctx) :
     else :
         await ctx.send("State : not connected")
 
+def templay(voice, title) :
+    song_manager = Song()
+    song_manager.download_song(url)
+    video_title = song_manager.get_title(url)
+    voice.play(discord.FFmpegPCMAudio("song.mp3"))
+    queue.append(video_title)
+
 @client.command()
-async def wholenewplay(ctx, title : str) :
+async def wholenewplay(ctx, input : str = '') :
     # global queue                                #queue변수를 local메소드에서 사용하기 위함
     voiceChannel = ctx.author.voice.channel     #메시지 작성자(유저)의 음성채널
     connection_state = False                    #connection_state : 봇이 음성채널에 연결되어있는지 확인하기 위한 변수
@@ -89,32 +98,39 @@ async def wholenewplay(ctx, title : str) :
     
     voice = discord.utils.get(client.voice_clients, guild=ctx.guild)
     
-    if connection_state is True and not voice.is_playing() :                    #봇이 음성채널에 연결됨 && 음악 재생중이 아님 - 기존 파일 삭제, 다운로드, 재생, nowplaying()
-        song_manager = Song()
-        song_manager.download_song(url)
-        video_title = song_manager.get_title(url)
-        voice.play(discord.FFmpegPCMAudio("song.mp3"))
-        queue.append(video_title)
-        await ctx.send("Now playing : {}" .format(str(queue[0])))
-    elif connection_state is True and not voice.is_playing() and not queue :    #봇이 음성채널에 연결됨 && 음악 재생중이 아님 && 큐가 비어있음 ->
-        await ctx.send("Queue is empty. Enter !play [title]. Or enter !auto [Artist name] to play Top10 of Artists.")
-    elif connection_state is True and not voice.is_playing() and queue :        #봇이 음성채널에 연결됨 && 음악 재생중이 아님 && 큐에 있음 ->
+    try :
+        converted_input = int(input)
+        if type(converted_input) is not int :
+            raise ValueError
+    except ValueError :
         pass
-    elif connection_state is True and voice.is_playing() :
-        song_manager = Song()
-        new_song_title = song_manager.get_title(url)
-        queue.append(new_song_title)
+    
+    if connection_state is True and not voice.is_playing() :                    #봇이 음성채널에 연결됨 && 음악 재생중이 아님 - 기존 파일 삭제, 다운로드, 재생, nowplaying()
+        templay(voice, input)
         await ctx.send("Now playing : {}" .format(str(queue[0])))
-        await ctx.send("Added new song : {}" .format(new_song_title))
-    elif connection_state is False :                            #음성채널 연결, 다운로드, 재생
+    elif connection_state is True and not voice.is_playing() and not queue :    #봇이 음성채널에 연결됨 && 음악 재생중이 아님 && 큐가 비어있음 -> 음성채널에 연결, 다운로드, 재생, 재생중인 곡 타이틀 알려줌
+        await ctx.send("Queue is empty. Enter !play [title]. Or enter !auto [Artist name] to play Top10 of Artist.")
+    elif connection_state is True and not voice.is_playing() and queue :        #봇이 음성채널에 연결됨 && 음악 재생중이 아님 && 큐가 비어있지 않음 -> queue에서 가져옴, 다운로드, 재생, 재생중인 곡 타이틀 알려줌
+        await ctx.send(Crawling_YT_Title(queue[0]))                             #queue의 첫 번째 원소를 Youtube에 검색해 상위 5개의 결과를 메시지로 리턴함
+    elif connection_state is False :
+        queue.clear()   #queue 초기화
         await voiceChannel.connect()
-        voice = discord.utils.get(client.voice_clients, guild=ctx.guild)
-        song_manager = Song()
-        song_manager.download_song(url)
-        video_title = song_manager.get_title(url)
-        voice.play(discord.FFmpegPCMAudio("song.mp3"))
-        queue.append(video_title)
-        await ctx.send("Now playing : {}" .format(str(queue[0])))
+        templay(voice, input)
+    # elif connection_state is True and voice.is_playing() :
+    #     song_manager = Song()
+    #     new_song_title = song_manager.get_title(url)
+    #     queue.append(new_song_title)
+    #     await ctx.send("Now playing : {}" .format(str(queue[0])))
+    #     await ctx.send("Added new song : {}" .format(new_song_title))
+    # elif connection_state is False :                            #음성채널 연결, 다운로드, 재생
+    #     await voiceChannel.connect()
+    #     voice = discord.utils.get(client.voice_clients, guild=ctx.guild)
+    #     song_manager = Song()
+    #     song_manager.download_song(url)
+    #     video_title = song_manager.get_title(url)
+    #     voice.play(discord.FFmpegPCMAudio("song.mp3"))
+    #     queue.append(video_title)
+    #     await ctx.send("Now playing : {}" .format(str(queue[0])))
 
 @client.command()
 async def newplay(ctx, url : str) :
@@ -276,4 +292,28 @@ async def on_message(ctx):
     else:
         await client.process_commands(ctx)
 
-client.run('YOUR_TOKEN')    #YOUR_TOKEN
+
+@client.command()
+async def comment(ctx, url:str):
+    yt_id, yt_comment, yt_like = Crawling_YT_Comment(url)
+    if len(yt_id)>10:
+        yt_id, yt_comment, yt_like = yt_id[:10], yt_comment[:10], yt_like[:10]
+    
+    if url.find("youtube.com/watch"):
+        emb = discord.Embed(title="TOP 10 Comments",description="This is comment about {}".format(url),color=discord.Color.blue())
+        emb.set_author(name=ctx.author.display_name, icon_url=ctx.author.avatar_url)
+        for i in range(len(yt_id)):
+            emb.add_field(name="{} (🧡{})".format(yt_id[i], yt_like[i]), value="{}".format(yt_comment[i]),inline=False)
+        else:
+            emb.add_field(name="Error or No comment", value="Please check the url")
+        await ctx.send(embed=emb)
+
+    else:
+        titles, hrefs = Crawling_YT_Title(str)
+        emb = discord.Embed(title="Select the title", description = "Typing the number", color=discord.Color.dark_blue())
+        for i in range(len(titles)):
+            emb.add_field(name="{}번".format(i), value="{}".format(titles[i]), inline=False)
+        comment_queue = True
+        await ctx.send(embed=emb)
+
+client.run('YOUR_TOKEN')   #YOUR_TOKEN
