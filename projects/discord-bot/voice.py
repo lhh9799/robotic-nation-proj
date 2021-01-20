@@ -3,6 +3,7 @@ from discord.ext import commands
 import youtube_dl
 import os
 from dbQuery import BAN as ban
+import timer
 
 client = commands.Bot(command_prefix="!")
 queue = list()
@@ -37,13 +38,34 @@ class Song :
             video_title = info_dict.get('title', None)
         return video_title
 
+@client.command()
+async def q(ctx) :
+    buf = str()
+    i = 1
+    if queue :
+        for var in queue :
+            buf = buf + '[' + str(i) + ']' + ' ' + var + '\n'
+            i += 1
+        await ctx.send("Queue list\n{}" .format(buf))
+    else :
+        await ctx.send("Queue is empty")
 
 @client.command()
-async def auto(ctx) :
+async def artist(ctx) :
+    import dbQuery
+    buf = 'List of artists in DB'
+    buf += dbQuery.READ()
+    await ctx.send(buf)
+
+@client.command()
+async def auto(ctx, name : str = '') :
+    if name == '' :
+        await ctx.send("Enter Artist name. To see list of artists, enter !artist")
+        return
     import fetch_playlist as fetcher
     for var in fetcher.fetch() :
         queue.append(var)
-    buf = 'Added song list'
+    buf = 'Added song list\n'
     i = 1
     for var in queue :
         buf = buf + '[' + str(i) + ']' + ' ' + var + '\n'
@@ -58,7 +80,44 @@ async def is_connected(ctx) :
         await ctx.send("State : not connected")
 
 @client.command()
-async def newplay(ctx, url : str):
+async def wholenewplay(ctx, title : str) :
+    # global queue                                #queue변수를 local메소드에서 사용하기 위함
+    voiceChannel = ctx.author.voice.channel     #메시지 작성자(유저)의 음성채널
+    connection_state = False                    #connection_state : 봇이 음성채널에 연결되어있는지 확인하기 위한 변수
+    if client.voice_clients :                   #봇이 음성채널에 있으면 connection_state를 True로 변경
+        connection_state = True
+    
+    voice = discord.utils.get(client.voice_clients, guild=ctx.guild)
+    
+    if connection_state is True and not voice.is_playing() :                    #봇이 음성채널에 연결됨 && 음악 재생중이 아님 - 기존 파일 삭제, 다운로드, 재생, nowplaying()
+        song_manager = Song()
+        song_manager.download_song(url)
+        video_title = song_manager.get_title(url)
+        voice.play(discord.FFmpegPCMAudio("song.mp3"))
+        queue.append(video_title)
+        await ctx.send("Now playing : {}" .format(str(queue[0])))
+    elif connection_state is True and not voice.is_playing() and not queue :    #봇이 음성채널에 연결됨 && 음악 재생중이 아님 && 큐가 비어있음 ->
+        await ctx.send("Queue is empty. Enter !play [title]. Or enter !auto [Artist name] to play Top10 of Artists.")
+    elif connection_state is True and not voice.is_playing() and queue :        #봇이 음성채널에 연결됨 && 음악 재생중이 아님 && 큐에 있음 ->
+        pass
+    elif connection_state is True and voice.is_playing() :
+        song_manager = Song()
+        new_song_title = song_manager.get_title(url)
+        queue.append(new_song_title)
+        await ctx.send("Now playing : {}" .format(str(queue[0])))
+        await ctx.send("Added new song : {}" .format(new_song_title))
+    elif connection_state is False :                            #음성채널 연결, 다운로드, 재생
+        await voiceChannel.connect()
+        voice = discord.utils.get(client.voice_clients, guild=ctx.guild)
+        song_manager = Song()
+        song_manager.download_song(url)
+        video_title = song_manager.get_title(url)
+        voice.play(discord.FFmpegPCMAudio("song.mp3"))
+        queue.append(video_title)
+        await ctx.send("Now playing : {}" .format(str(queue[0])))
+
+@client.command()
+async def newplay(ctx, url : str) :
     voiceChannel = ctx.author.voice.channel
     
     connection_state = False
@@ -169,6 +228,7 @@ async def resume(ctx):
 @client.command()
 async def stop(ctx):
     voice = discord.utils.get(client.voice_clients, guild=ctx.guild)
+    del queue[0]    #현재 재생중인 음악을 queue에서 삭제함
     voice.stop()
 
 @client.command() #채팅채널 메세지 삭제 커맨드
@@ -216,4 +276,4 @@ async def on_message(ctx):
     else:
         await client.process_commands(ctx)
 
-client.run('YOUR_TOKEN')
+client.run('YOUR_TOKEN')    #YOUR_TOKEN

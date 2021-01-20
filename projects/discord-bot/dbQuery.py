@@ -1,7 +1,7 @@
 import sqlite3
 
 #DB연결
-conn = sqlite3.connect("./artistDB.db")
+conn = sqlite3.connect("./DB.db")
 c = conn.cursor()
 
 class BAN:  #금지어 목록 관리
@@ -62,12 +62,26 @@ def CREATE() :
 
     print("Insertion Completed")
 
+# #READ
+# def READ() :
+#     i = 1
+#     buf = str()
+#     for row in c.execute("SELECT * FROM ARTIST") :
+#         # buf += "Record #" + str(i) + row + "\n"
+#         print(i + row)
+#         i += 1
+#     # print(buf)
+#     # return buf
+
 #READ
 def READ() :
-    i = 0
-    for row in c.execute("SELECT * FROM ARTIST") :
-        print("Record #{} : {}" .format(i, row))
+    i = 1
+    buf = str()
+    for row in c.execute("SELECT NAME FROM ARTIST") :
+        buf = buf + '[' + str(i) + ']' + ' ' + ''.join(row) + '\n'
         i += 1
+    print(buf)
+    return buf
 
 #UPDATE
 def UPDATE() :
