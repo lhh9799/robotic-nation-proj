@@ -266,7 +266,7 @@ async def stop(ctx):
     brief="채팅채널 메세지(채팅)를 삭제해주는 명령어"
 ) #채팅채널 메세지 삭제 커맨드
 
-async def clear(ctx, amount): #삭제할 메세지 수를 입력하지 않으면 20개 삭제
+async def clear(ctx, amount=''): #삭제할 메세지 수를 입력하지 않으면 20개 삭제
     if amount == '':
         amount = 20
     try:
